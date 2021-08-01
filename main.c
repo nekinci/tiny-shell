@@ -103,7 +103,6 @@ void prompt_and_read_command(){
 
 int main() {
 
-    //alarm(0);
     prompt_and_read_command();
     return 0;
 }
