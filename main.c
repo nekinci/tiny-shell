@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
-
+#include <pwd.h>
 
 
 #define READ 0
@@ -90,11 +90,24 @@ void do_processes(char** p_list, int p_count) {
 
 }
 
+char* prompt_current_dir(){
+    char cd[BUFSIZ];
+    getcwd(cd, sizeof(cd));
+    char *ret = malloc(sizeof(char) * BUFSIZ);
+    strcpy(ret, cd);
+    return ret;
+}
+
+char* prompt_message() {
+    struct passwd *pw = getpwuid(geteuid());
+    return pw -> pw_name;
+}
+
 #define BUF_SIZE 1024
-void prompt_and_read_command(){
+void prompt(){
 
     while (true){
-        printf("> ");
+        printf("%s %s $ ", prompt_message(), prompt_current_dir());
         char *line;
         size_t buf_size = BUF_SIZE;
         char** p_list = malloc(sizeof(char*) * MAX_PROCESS_COMMAND);
@@ -106,6 +119,6 @@ void prompt_and_read_command(){
 
 
 int main() {
-    prompt_and_read_command();
+    prompt();
     return 0;
 }
