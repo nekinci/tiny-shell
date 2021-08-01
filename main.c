@@ -44,27 +44,28 @@ char** arg_list(char *line) {
 
 void do_processes(char** p_list, int p_count) {
 
+    int pipe_fd[2];
+    pipe(pipe_fd);
     pid_t pid = fork();
-    int m_fd[2];
-    pipe(m_fd);
-    int status;
     if (pid < 0){
         perror("Fork failed");
     } else if (pid > 0){
         // Parent waits child processes
         wait(NULL);
-        close(m_fd[WRITE]);
-        char data[2048];
-        read(m_fd[READ], data, 2048);
-        printf("in parent: %s", data);
+        char data[20];
+        close(pipe_fd[1]);
+        read(pipe_fd[0], data, sizeof(data));
+        close(pipe_fd[0]);
+        printf("in parent: %s\n", data);
     } else {
+
         int fd[2];
         pipe(fd);
         pid_t c_pid = fork();
         if (c_pid == 0){
+            close(pipe_fd[WRITE]);
+            close(pipe_fd[READ]);
             close(fd[READ]);
-            close(m_fd[READ]);
-            close(m_fd[WRITE]);
             dup2(fd[WRITE], STDOUT_FILENO);
             close(fd[WRITE]);
             char **program_args = arg_list(p_list[0]);
@@ -72,15 +73,18 @@ void do_processes(char** p_list, int p_count) {
             perror("Hata");
         } else if(c_pid > 0) {
             wait(NULL);
-            close(fd[WRITE]);
-            close(m_fd[READ]);
-            dup2(fd[READ], stdin);
-            close(fd[READ]);
-            dup2(m_fd[WRITE], stdout);
-            close(m_fd[WRITE]);
             char **program_args = arg_list(p_list[1]);
+            dup2(fd[READ], STDIN_FILENO);  // Read pipe ucunu standart input dosyasını gösterecek şekilde yönlendirdik. (kopyaladık.)
+            close(fd[WRITE]); // Yazma pipe ucunu kapattık cünkü kullanmayacagız.
+            close(fd[READ]);
+
+            // Parent process piping
+            close(pipe_fd[0]);
+            dup2(pipe_fd[1], STDOUT_FILENO);
+            close(pipe_fd[1]);
             execv(program_args[0], program_args);
             perror("Hata");
+            exit(0);
         }
     }
 
