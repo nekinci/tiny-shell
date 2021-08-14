@@ -4,14 +4,21 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pwd.h>
-#include <errno.h>
-
+#include "util.h"
 
 #define READ 0
 #define WRITE 1
 #define MAX_PROCESS_COMMAND 10
 #define MAX_ARG 15
 
+typedef struct {
+    char **argv;
+    int argc;
+    char* cmd;
+    bool is_builtin;
+} Process;
+
+const char* builtin_command_list[] = {"cd", "help", "exit"};
 
 #define PIPE_DELIM "|\n"
 int process_list(char*line, char ** p_list){
@@ -29,7 +36,7 @@ int process_list(char*line, char ** p_list){
 }
 
 #define ARG_DELIM " \t\r\n\a"
-char** arg_list(char *line) {
+char** arg_list(char *line, int *arg_count) {
     char *delim = ARG_DELIM;
     int argc = 0;
     char** arg_list = malloc(sizeof(char*) * MAX_ARG);
@@ -40,10 +47,48 @@ char** arg_list(char *line) {
         arg_list[argc++] = token;
     }
     arg_list[argc++] = NULL;
+    *arg_count = argc;
     return arg_list;
 }
 
-void do_processes(char **p_list, int p_count){
+
+bool is_builtin(char* cmd){
+    int index = 0;
+    while (builtin_command_list[index] != NULL)
+        if (strcmp(builtin_command_list[index++], cmd))
+            return true;
+    return false;
+}
+
+void built_in_command(char **p_list, int p_count) {
+
+}
+
+
+Process** group_processes(char **p_list, int p_count){
+    Process** processes = malloc(sizeof(Process*) * p_count);
+    for (int i = 0; i < p_count; i++){
+        Process *p = malloc(sizeof(Process));
+        int argc;
+        char **argv = arg_list(p_list[i], &argc);
+
+        if (argv[0] != NULL){
+            trim(argv[0]);
+        }
+
+        p -> is_builtin = is_builtin(argv[0]);
+        p -> argv = argv;
+        p -> argc = argc;
+        p -> cmd = argv[0];
+        processes[i] = p;
+    }
+
+    return processes;
+}
+
+
+
+void do_processes_helper(Process** p_list, int p_count){
 
     int parent_pid = fork();
     if (parent_pid > 0) {
@@ -72,8 +117,7 @@ void do_processes(char **p_list, int p_count){
                 // process için bir input niteliği taşır.
                 dup2(before_in, STDIN_FILENO);
                 close(before_in);
-                char **args = arg_list(p_list[i]);
-                execv(args[0], args);
+                execvp(p_list[i]->cmd, p_list[i] -> argv);
                 exit(0);
             }
         }
@@ -90,12 +134,18 @@ void do_processes(char **p_list, int p_count){
         }
         close(before_in);
         printf("%s", data);
+        exit(0);
 
     } else {
         perror("Process failed");
     }
-
 }
+
+void do_processes(char **p_list, int p_count){
+    Process** process_list = group_processes(p_list, p_count);
+    do_processes_helper(process_list, p_count);
+}
+
 
 char* prompt_current_dir(){
     char cd[BUFSIZ];
